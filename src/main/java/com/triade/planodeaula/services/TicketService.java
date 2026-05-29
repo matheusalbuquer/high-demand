@@ -29,12 +29,15 @@ public class TicketService {
 
     public TicketResponseDTO create(){
 
-      String login = SecurityContextHolder.getContext().getAuthentication().getName();
+      String login = SecurityContextHolder.getContext()
+        .getAuthentication()
+        .getName();
 
-      System.out.println("LOGIN: " + login);
+        System.out.println("LOGIN: [" + login + "]");
 
-      User user = userRepository.findByEmail(login);
+        User user = userRepository.findByEmail(login);
 
+        System.out.println("USER: " + user);
 
         Ticket ticket = new Ticket();
         ticket.setStatus(Status.RASCUNHO);
@@ -45,8 +48,63 @@ public class TicketService {
         return new TicketResponseDTO(salvo.getId(), salvo.getStatus());
     }
 
+    @Transactional
+    public TicketResponseDTO submeter(Long id) {
+
+      String login = SecurityContextHolder
+        .getContext()
+        .getAuthentication()
+        .getName();
+
+
+
+        User user = userRepository.findByEmail(login);
+
+        Ticket ticket = ticketRepository.findById(id)
+          .orElseThrow(() -> new RuntimeException("Ticket não encontrado"));
+
+
+        if (!ticket.getUser().getId().equals(user.getId())) {
+          throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+
+
+        long quantidadeUsuario =
+          ticketRepository.countByUserAndStatus(
+            user,
+            Status.PROCESSANDO
+          );
+
+        if (quantidadeUsuario >= 2) {
+          throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "COTA_PESSOAL"
+          );
+        }
+
+
+        long totalProcessando =
+          ticketRepository.countByStatus(Status.PROCESSANDO);
+
+        if (totalProcessando >= 100) {
+          throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "POOL_CHEIO"
+          );
+        }
+
+        ticket.setStatus(Status.PROCESSANDO);
+
+        ticketRepository.save(ticket);
+
+        return new TicketResponseDTO(
+          ticket.getId(),
+          ticket.getStatus()
+        );
+    }
+
   @Transactional
-  public TicketResponseDTO submeter(Long id) {
+  public TicketResponseDTO finalizar(Long id) {
 
     String login = SecurityContextHolder
       .getContext()
@@ -56,39 +114,17 @@ public class TicketService {
     User user = userRepository.findByEmail(login);
 
     Ticket ticket = ticketRepository.findById(id)
-      .orElseThrow(() -> new RuntimeException("Ticket não encontrado"));
-
+      .orElseThrow(() -> new RuntimeException("Nao encontrado"));
 
     if (!ticket.getUser().getId().equals(user.getId())) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
 
-
-    long quantidadeUsuario =
-      ticketRepository.countByUserAndStatus(
-        user,
-        Status.PROCESSANDO
-      );
-
-    if (quantidadeUsuario >= 2) {
-      throw new ResponseStatusException(
-        HttpStatus.CONFLICT,
-        "COTA_PESSOAL"
-      );
+    if (ticket.getStatus() != Status.PROCESSANDO) {
+      throw new RuntimeException("Status inválido");
     }
 
-
-    long totalProcessando =
-      ticketRepository.countByStatus(Status.PROCESSANDO);
-
-    if (totalProcessando >= 100) {
-      throw new ResponseStatusException(
-        HttpStatus.CONFLICT,
-        "POOL_CHEIO"
-      );
-    }
-
-    ticket.setStatus(Status.PROCESSANDO);
+    ticket.setStatus(Status.CONCLUIDO);
 
     ticketRepository.save(ticket);
 
@@ -97,6 +133,7 @@ public class TicketService {
       ticket.getStatus()
     );
   }
+
 
 
 

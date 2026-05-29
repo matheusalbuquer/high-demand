@@ -22,11 +22,21 @@ public class TicketController {
         return ResponseEntity.status(201).body(salvo);
     }
 
-  @PostMapping
-  public ResponseEntity<TicketResponseDTO> submeter(@PathVariable Long id){
-    TicketResponseDTO salvo = ticketService.submeter(id);
-    return ResponseEntity.status(200).body(salvo);
-  }
+    @PostMapping("/{id}/submeter")
+    public ResponseEntity<TicketResponseDTO> submeter(@PathVariable Long id){
+      TicketResponseDTO salvo = ticketService.submeter(id);
+      return ResponseEntity.status(200).body(salvo);
+    }
 
+
+    @PostMapping("/{id}/finalizar")
+    public ResponseEntity<TicketResponseDTO> finalizar(
+      @PathVariable Long id
+    ) {
+
+      TicketResponseDTO response = ticketService.finalizar(id);
+
+      return ResponseEntity.ok(response);
+    }
 
 }
