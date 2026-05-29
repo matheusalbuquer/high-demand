@@ -19,7 +19,6 @@ public class Ticket {
     private User user;
 
 
-
     @Enumerated(EnumType.STRING)
     private Status status;
 

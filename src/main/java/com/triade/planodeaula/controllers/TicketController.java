@@ -4,6 +4,7 @@ import com.triade.planodeaula.dtos.ticket.TicketResponseDTO;
 import com.triade.planodeaula.services.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,4 +21,12 @@ public class TicketController {
         TicketResponseDTO salvo = ticketService.create();
         return ResponseEntity.status(201).body(salvo);
     }
+
+  @PostMapping
+  public ResponseEntity<TicketResponseDTO> submeter(@PathVariable Long id){
+    TicketResponseDTO salvo = ticketService.submeter(id);
+    return ResponseEntity.status(200).body(salvo);
+  }
+
+
 }
