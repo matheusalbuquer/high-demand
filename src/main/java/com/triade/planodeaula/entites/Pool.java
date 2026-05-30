@@ -1,12 +1,13 @@
 package com.triade.planodeaula.entites;
 
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 @Table(name = "tb_pool")
+@Entity
 public class Pool {
 
   @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
   private Integer vagasDisponiveis;
