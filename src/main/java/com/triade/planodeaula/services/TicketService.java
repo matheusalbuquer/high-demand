@@ -20,36 +20,47 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class TicketService {
 
+  private final TicketRepository ticketRepository;
+  private final UserRepository userRepository;
+  private final PoolRepository poolRepository;
 
-    private final TicketRepository ticketRepository;
-    private final UserRepository userRepository;
-    private final PoolRepository poolRepository;
+  public TicketService(
+    TicketRepository ticketRepository,
+    PoolRepository poolRepository,
+    UserRepository userRepository
+  ) {
+    this.ticketRepository = ticketRepository;
+    this.poolRepository = poolRepository;
+    this.userRepository = userRepository;
+  }
 
-    public TicketService (TicketRepository ticketRepository,PoolRepository poolRepository, UserRepository userRepository){
-        this.ticketRepository = ticketRepository;
-        this.poolRepository = poolRepository;
-        this.userRepository = userRepository;
+  public TicketResponseDTO create() {
+
+    String login = SecurityContextHolder
+      .getContext()
+      .getAuthentication()
+      .getName();
+
+    User user = userRepository.findByEmail(login);
+
+    if (user == null) {
+      throw new ResponseStatusException(
+        HttpStatus.UNAUTHORIZED,
+        "USUARIO_NAO_AUTENTICADO"
+      );
     }
 
-    public TicketResponseDTO create(){
+    Ticket ticket = new Ticket();
+    ticket.setUser(user);
+    ticket.setStatus(Status.RASCUNHO);
 
-      String login = SecurityContextHolder.getContext()
-        .getAuthentication()
-        .getName();
+    Ticket salvo = ticketRepository.save(ticket);
 
-
-        User user = userRepository.findByEmail(login);
-
-        System.out.println("USER: " + user);
-
-        Ticket ticket = new Ticket();
-        ticket.setStatus(Status.RASCUNHO);
-        ticket.setUser(user);
-
-        Ticket salvo = ticketRepository.save(ticket);
-
-        return new TicketResponseDTO(salvo.getId(), salvo.getStatus());
-    }
+    return new TicketResponseDTO(
+      salvo.getId(),
+      salvo.getStatus()
+    );
+  }
 
   @Transactional
   public TicketResponseDTO submeter(Long id) {
@@ -61,13 +72,31 @@ public class TicketService {
 
     User user = userRepository.findByEmail(login);
 
-    Ticket ticket = ticketRepository.findById(id)
-      .orElseThrow(() -> new RuntimeException("Ticket não encontrado"));
+    if (user == null) {
+      throw new ResponseStatusException(
+        HttpStatus.UNAUTHORIZED,
+        "USUARIO_NAO_AUTENTICADO"
+      );
+    }
 
+    Ticket ticket = ticketRepository.findById(id)
+      .orElseThrow(() ->
+        new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+    // Blindagem de propriedade
     if (!ticket.getUser().getId().equals(user.getId())) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
 
+    // Só permite RASCUNHO -> PROCESSANDO
+    if (ticket.getStatus() != Status.RASCUNHO) {
+      throw new ResponseStatusException(
+        HttpStatus.CONFLICT,
+        "STATUS_INVALIDO"
+      );
+    }
+
+    // Cota pessoal
     long quantidadeUsuario =
       ticketRepository.countByUserAndStatus(
         user,
@@ -81,8 +110,14 @@ public class TicketService {
       );
     }
 
+    // Lock do pool
     Pool pool = poolRepository.buscarPoolComLock();
 
+    if (pool == null) {
+      throw new RuntimeException("Pool não configurado");
+    }
+
+    // Pool global
     if (pool.getVagasDisponiveis() <= 0) {
       throw new ResponseStatusException(
         HttpStatus.CONFLICT,
@@ -105,7 +140,6 @@ public class TicketService {
     );
   }
 
-
   @Transactional
   public TicketResponseDTO finalizar(Long id) {
 
@@ -116,18 +150,35 @@ public class TicketService {
 
     User user = userRepository.findByEmail(login);
 
-    Ticket ticket = ticketRepository.findById(id)
-      .orElseThrow(() -> new RuntimeException("Nao encontrado"));
+    if (user == null) {
+      throw new ResponseStatusException(
+        HttpStatus.UNAUTHORIZED,
+        "USUARIO_NAO_AUTENTICADO"
+      );
+    }
 
+    Ticket ticket = ticketRepository.findById(id)
+      .orElseThrow(() ->
+        new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+    // Blindagem de propriedade
     if (!ticket.getUser().getId().equals(user.getId())) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
 
+    // Só permite PROCESSANDO -> CONCLUIDO
     if (ticket.getStatus() != Status.PROCESSANDO) {
-      throw new RuntimeException("Status inválido");
+      throw new ResponseStatusException(
+        HttpStatus.CONFLICT,
+        "STATUS_INVALIDO"
+      );
     }
 
     Pool pool = poolRepository.buscarPoolComLock();
+
+    if (pool == null) {
+      throw new RuntimeException("Pool não configurado");
+    }
 
     ticket.setStatus(Status.CONCLUIDO);
 
@@ -143,7 +194,4 @@ public class TicketService {
       ticket.getStatus()
     );
   }
-
-
-
 }
